@@ -1,0 +1,172 @@
+import java_cup.runtime.*;
+import java.util.*;
+import java.io.*;
+
+init with{:
+    table = new HashMap<String, HashMap<String, Float>>();
+:};
+
+parser code     {:
+    public HashMap<String, HashMap<String, Float>> table;
+
+    public void report_error(String message, Object info){
+        StringBuffer m = new StringBuffer(message);
+        if (info instanceof Symbol){
+            if(((Symbol)info).left != 1 && ((Symbol)info).right != 1){
+                if(((Symbol)info).left != -1 && ((Symbol)info).right != -1){
+                    int line = (((Symbol)info).left) + 1;
+                    int column = (((Symbol)info).right) + 1;
+                    m.append("(line" + line + "column " + column + ")");
+                }
+            }
+            System.err.println(m);
+        }
+    }
+
+     // Return semantic value of symbol in position (position)
+    public Object stack(int position) {
+        return (((Symbol)stack.elementAt(tos+position)).value);
+    }
+	
+	// funzione per formattare i float 
+    public static String formatFloat(float number) {
+        String formatted = String.format(Locale.US, "%.2f", number);
+        return formatted;
+    }
+
+:}
+
+
+//DEFINIZIONE TERMINALI
+terminal SEP, TOK1, TOK2, TOK3, OP, CP, COLON, COMMA, SCOLON, DOT;
+terminal String EURODAY, MIN_SUM, ELECTRICITY, QSTRING;
+terminal Integer UINT;
+terminal Float REAL;
+
+//DEFINIZIONE NON TERMINALI
+
+non terminal prog, t1, t2, t3, header, camping_section, 
+    sol, users_sections, minsum, reservations;
+non terminal HashMap characteristics ;
+// non terminal Integer[];
+non terminal Float[] items;
+non terminal Float durations;
+non terminal Boolean electricity;
+//non terminal Object[];
+
+
+//PRECEDENZE
+
+// precedence left PLUS,MINUS;
+// precedence left STAR,DIV;
+//precedence left OR, AND;
+//precedence left NOT;
+
+//precedence left TOK1, TOK2; //utile in caso di conflitti
+precedence left TOK3;       //utile in caso di conflitti
+
+
+
+
+//GRAMMATICA
+
+start with prog;
+
+prog ::= header SEP camping_section SEP users_sections;
+
+header ::= 
+      t3 t1 t3 t2 t3 t2 t3 
+    | t3 t2 t3 t1 t3 t2 t3
+    | t3 t2 t3 t2 t3 t1 t3;
+t1 ::= TOK1 SCOLON;
+t2 ::= TOK2 SCOLON;
+t3 ::= TOK3 SCOLON | t3 TOK3 SCOLON | ;
+
+camping_section ::= sol sol | camping_section sol sol;
+
+sol ::=  QSTRING:type COLON characteristics:x SCOLON {:
+    parser.table.put(type, x);
+:};
+
+characteristics ::= 
+      QSTRING:dim REAL:price EURODAY {:
+        HashMap tab = new HashMap<String, Float>();
+        tab.put((String)dim, (Float)price);
+        RESULT = tab;
+      :}
+    | characteristics:tab COMMA QSTRING:dim REAL:price EURODAY {:
+        tab.put((String)dim, (Float)price);
+        RESULT = tab;
+      :};
+
+users_sections ::= minsum reservations;
+
+minsum ::=
+    | MIN_SUM OP items:res CP SCOLON {:
+        Float min = (Float)res[0];
+        Float sum = (Float)res[1];
+        System.out.println("MIN: " + formatFloat(min) + " SUM: " + formatFloat(sum));
+    :};
+
+items ::= QSTRING:type DOT QSTRING:dim {:
+        Float price = (Float)parser.table.get(type).get(dim);
+        Float[] res = new Float[2];
+        res[0]=price;
+        res[1]=price;
+        RESULT = res;
+    :}
+    | items:res COMMA QSTRING:type DOT QSTRING:dim {:
+        Float price = (Float)parser.table.get(type).get(dim);
+        if(price<res[0]){
+            res[0]=price;
+        }
+        res[1]=res[1]+price;
+        RESULT = res;
+    :};
+
+electricity ::= ELECTRICITY {: RESULT=true; :} | {: RESULT=false; :} ;
+reservations ::= REAL:discount electricity:el QSTRING:username COLON durations:sum SCOLON {:
+    System.out.println(username + " " + formatFloat(sum));
+:} | reservations REAL:discount electricity:el QSTRING:username COLON durations:sum SCOLON {:
+    System.out.println(username + " " + formatFloat(sum));
+:};
+
+durations ::= QSTRING:type DOT QSTRING:dim UINT:days {: 
+    Boolean el = (Boolean)parser.stack(-6);
+    Float discount = (Float)parser.stack(-7);
+    Float price = (Float)parser.table.get(type).get(dim);
+    Float res = days*price*discount;
+    if(el){
+        res = res + 10.00f;
+    }
+    RESULT = res;
+    System.out.println(type + "." + dim + " " +formatFloat(res));
+:}
+    | durations:res COMMA QSTRING:type DOT QSTRING:dim UINT:days {:
+        Boolean el = (Boolean)parser.stack(-8);
+        Float discount = (Float)parser.stack(-9);
+        Float price = (Float)parser.table.get(type).get(dim);
+        Float res1 = days*price*discount;
+        if(el){
+            res1 = res1 + 10.00f;
+        }
+        System.out.println(type + "." + dim + " " +formatFloat(res1));
+        RESULT = res1 + res;
+    :};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
